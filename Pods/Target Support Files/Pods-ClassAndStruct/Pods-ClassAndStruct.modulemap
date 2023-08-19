@@ -1,0 +1,6 @@
+framework module Pods_ClassAndStruct {
+  umbrella header "Pods-ClassAndStruct-umbrella.h"
+
+  export *
+  module * { export * }
+}
