@@ -5,7 +5,16 @@
 //  Created by Dojin Park on 2023/08/20.
 //
 
+// 주장1 "Struct 는 스택 메모리를 사용, Class 는 힙 메모리를 사용. 힙 메모리는 메모리 관리 오버헤드가 있다."
+// https://medium.com/macoclock/swift-struct-vs-class-performance-29b7be73d9fd
+
+// 주장2 "실험해보니 Struct copy 가 Class copy 보다 훨씬 빠르다"
+// https://stackoverflow.com/a/24243626
+
 import SwiftUI
+import UIKit
+
+let DataSize = 10000
 
 @main
 struct ClassAndStructApp: App {
@@ -15,11 +24,11 @@ struct ClassAndStructApp: App {
     var body: some Scene {
         WindowGroup {
             
-            let classData: [ClassData] = buildRandomData(size: 10000)
+            let classData: [ClassData] = buildRandomData(size: DataSize)
             
-            let structData: [StructData] = buildRandomData(size: 10000)
+            let structData: [StructData] = buildRandomData(size: DataSize)
             
-            let observedData: [ObservableData] = buildRandomData(size: 10000)
+            let observedData: [ObservableData] = buildRandomData(size: DataSize)
             
             TabView(selection: $tab) {
                 
@@ -46,11 +55,25 @@ struct ClassAndStructApp: App {
                 .tabItem {
                     Text("Observed")
                 }
+                
+                TableRepresentation(data: structData)
+                    .id(3)
+                    .tabItem {
+                        Text("Struct UIKit")
+                    }
+                
+                TableRepresentation(data: classData)
+                    .id(4)
+                    .tabItem {
+                        Text("Class UIKit")
+                    }
+                
             }
         }
     }
 }
 
+// MARK: Data Types
 protocol DataProtocol {
     var id: UUID { get set }
     var title: String { get set }
@@ -94,6 +117,7 @@ final class ObservableData: DataProtocol, ObservableObject {
     @Published var imageUrl: URL = randomImageUrl()
 }
 
+// MARK: 1. Class & 2. Struct
 struct Stack<Element: DataProtocol>: View {
     
     @State var data: [Element]
@@ -140,6 +164,9 @@ struct Stack<Element: DataProtocol>: View {
     }
 }
 
+
+
+// MARK: 3. Observed
 struct ObservedStack: View {
     
     @State var data: [ObservableData]
@@ -181,15 +208,110 @@ struct Cell: View {
     @ObservedObject var element: ObservableData
     
     var body: some View {
-        HStack {
-            VStack {
-                Text(element.title).font(.headline)
-                Text(element.bodyText).font(.footnote)
-                Text(element.footnote).font(.caption2)
-            }
+        VStack {
+            Text(element.title).font(.headline)
+            Text(element.bodyText).font(.footnote)
+            Text(element.footnote).font(.caption2)
         }
     }
 }
+
+
+// MARK: 4. Class on UITableView & 5. Struct on UITableView
+struct TableRepresentation: UIViewControllerRepresentable {
+    
+    typealias UIViewControllerType = UINavigationController
+    
+    var data: [any DataProtocol]
+    
+    func makeUIViewController(context: Context) -> UINavigationController {
+        UINavigationController(rootViewController: TableVC(data: data))
+    }
+    
+    func updateUIViewController(_ uiViewController: UINavigationController, context: Context) {
+        
+    }
+}
+
+class TableVC: UITableViewController {
+    
+    var data: [any DataProtocol]
+    
+    init(data: [any DataProtocol]) {
+        self.data = data
+        super.init(nibName: nil, bundle: nil)
+        let button1 = UIBarButtonItem(title: "Modify Data", primaryAction: UIAction{_ in
+            for (idx, _) in data.enumerated() {
+                self.data[idx].modifyData()
+            }
+            self.tableView.reloadData()
+        })
+        let button2 = UIBarButtonItem(title: "Modify Title", primaryAction: UIAction{_ in
+            for (idx, _) in data.enumerated() {
+                self.data[idx].title = randomString()
+            }
+            self.tableView.reloadData()
+        })
+        self.navigationItem.rightBarButtonItems = [
+            button2,
+            button1,
+        ]
+    }
+    
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+    
+    override func viewDidLoad() {
+        self.tableView.register(CellView.self, forCellReuseIdentifier: "CellView")
+    }
+    
+    override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
+        data.count
+    }
+    
+    override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+        let cell = tableView.dequeueReusableCell(withIdentifier: "CellView") as! CellView
+        let element = data[indexPath.row]
+        cell.configure(withData: element)
+        return cell
+    }
+    
+    override func tableView(_ tableView: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat {
+        70
+    }
+}
+
+
+class CellView: UITableViewCell {
+    func configure(withData data: any DataProtocol) {
+        self.textLabel!.text = data.title
+        
+        let body = UILabel()
+        body.font = .preferredFont(forTextStyle: .callout)
+        body.text = data.bodyText
+        
+        let footnote = UILabel()
+        footnote.font = .preferredFont(forTextStyle: .caption2)
+        footnote.text = data.footnote
+        
+        let stack = UIStackView(arrangedSubviews: [
+            body,
+            footnote
+        ])
+        stack.axis = .vertical
+        stack.frame = .init(origin: .zero, size: .init(width: 100, height: 70))
+        
+        self.accessoryView = stack
+        
+    }
+}
+
+
+
+
+
+
 
 
 
